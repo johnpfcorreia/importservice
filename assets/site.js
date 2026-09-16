@@ -242,7 +242,8 @@
       if (!form.reportValidity()) return;
 
       var es = document.documentElement.lang.slice(0, 2) === 'es';
-      var unconfigured = form.action.indexOf('YOUR_FORM_ID') !== -1 || !form.hasAttribute('data-netlify');
+      // No server-side form handler on this host: enquiries go to WhatsApp with the fields pre-filled.
+      var unconfigured = true;
       var data = new FormData(form);
 
       if (unconfigured) {

@@ -1,25 +1,19 @@
 /* ---------------------------------------------------------------------------
- * netlify/functions/chat.js — the AutoRuta24 assistant, on Groq.
+ * functions/api/chat.js — the AutoRuta24 assistant, on Cloudflare Pages.
  *
- * Two Groq calls do the work:
- *   - llama-3.3-70b-versatile runs the conversation and owns two tools:
- *     pesquisar_anuncios and calcular_impostos.
- *   - When it asks for listings, this function calls groq/compound with its
- *     built-in web search locked to the marketplace domains, and hands the
- *     answer back as the tool result. Compound can't take custom tools, and
- *     70B can't search on its own, so each does the half it can.
+ * Same design as before: llama-3.3-70b-versatile runs the conversation and
+ * owns two tools; groq/compound does the marketplace search with its built-in
+ * web search locked to the listing domains. Both on Groq's free tier.
  *
- * Needs GROQ_API_KEY in Netlify → Site configuration → Environment variables.
- * Optional: CHAT_MODEL, SEARCH_MODEL, CHAT_ORIGIN.
+ * Cloudflare routes this file to /api/chat automatically. Set GROQ_API_KEY in
+ * Cloudflare Pages → Settings → Variables and Secrets (Production).
  * ------------------------------------------------------------------------- */
-'use strict';
-
-const TaxPT = require('../../assets/tax-pt.js');
+import TaxPT from '../../assets/tax-pt.js';
 
 const API = 'https://api.groq.com/openai/v1/chat/completions';
-const CHAT_MODEL = process.env.CHAT_MODEL || 'llama-3.3-70b-versatile';
-const SEARCH_MODEL = process.env.SEARCH_MODEL || 'groq/compound';
-const ORIGIN = process.env.CHAT_ORIGIN || 'https://www.autoruta24.com';
+const chatModel = (e) => e.CHAT_MODEL || 'llama-3.3-70b-versatile';
+const searchModel = (e) => e.SEARCH_MODEL || 'groq/compound';
+const origin = (e) => e.CHAT_ORIGIN || 'https://www.autoruta24.com';
 const MAX_TURNS = 20;
 const MAX_USER_CHARS = 1200;
 
@@ -105,12 +99,12 @@ function runCalculator(i) {
            iuc_anual: iuc.total, notas: isv.notes.concat(iuc.notes) };
 }
 
-async function groq(body, extraHeaders) {
+async function groq(env, body, extraHeaders) {
   const res = await fetch(API, {
     method: 'POST',
     headers: Object.assign({
       'content-type': 'application/json',
-      'authorization': 'Bearer ' + process.env.GROQ_API_KEY
+      'authorization': 'Bearer ' + env.GROQ_API_KEY
     }, extraHeaders || {}),
     body: JSON.stringify(body)
   });
@@ -120,15 +114,15 @@ async function groq(body, extraHeaders) {
 
 // Compound searches the marketplaces and summarises what it finds. We keep
 // the summary as the tool result and lift the URLs out for the widget.
-async function searchListings(i, sources) {
+async function searchListings(env, i, sources) {
   const domains = i.mercado === 'nacional' ? LOCAL_MARKETS : EU_MARKETS;
   const where = i.mercado === 'nacional' ? 'em Portugal e Espanha' : 'na Alemanha, Holanda, Bélgica, França, Itália e Áustria';
   const budget = i.preco_max ? ` com preço até ${Math.round(i.preco_max)} euros` : '';
   const prompt = `Procura anúncios à venda de ${i.consulta} ${where}${budget}. ` +
     'Responde em português com uma lista curta de até 6 anúncios concretos: modelo/versão, ano, quilómetros, preço em euros e o URL. ' +
     'Depois indica a faixa de preços encontrada. Só anúncios reais que tenhas visto; se não encontrares, diz que não encontraste.';
-  const r = await groq({
-    model: SEARCH_MODEL,
+  const r = await groq(env, {
+    model: searchModel(env),
     messages: [{ role: 'user', content: prompt }],
     search_settings: { include_domains: domains },
     compound_custom: { tools: { enabled_tools: ['web_search'] } }
@@ -150,35 +144,49 @@ async function searchListings(i, sources) {
   return text || 'Não encontrei anúncios para essa pesquisa.';
 }
 
-/* -- handler ----------------------------------------------------------- */
 
-exports.handler = async (event) => {
-  const cors = {
-    'Access-Control-Allow-Origin': ORIGIN,
-    'Access-Control-Allow-Headers': 'content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Content-Type': 'application/json'
-  };
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors, body: '' };
-  // Read-only health check: reports whether the key is visible, never its value.
-  if (event.httpMethod === 'GET' && event.queryStringParameters && event.queryStringParameters.diag === '1') {
-    const names = Object.keys(process.env).filter(k => /GROQ/i.test(k));
-    return { statusCode: 200, headers: cors, body: JSON.stringify({
-      configured: !!process.env.GROQ_API_KEY, groq_variables_seen: names, model: CHAT_MODEL, search: SEARCH_MODEL }) };
+/* -- handlers ------------------------------------------------------------ */
+
+const json = (env, status, obj) => new Response(JSON.stringify(obj), {
+  status,
+  headers: {
+    'content-type': 'application/json',
+    'access-control-allow-origin': origin(env),
+    'access-control-allow-headers': 'content-type',
+    'access-control-allow-methods': 'POST, GET, OPTIONS'
   }
-  if (event.httpMethod !== 'POST') return { statusCode: 405, headers: cors, body: '{"error":"method"}' };
-  if (!process.env.GROQ_API_KEY) return { statusCode: 503, headers: cors, body: '{"error":"not-configured"}' };
+});
+
+export async function onRequestOptions({ env }) {
+  return new Response(null, { status: 204, headers: {
+    'access-control-allow-origin': origin(env),
+    'access-control-allow-headers': 'content-type',
+    'access-control-allow-methods': 'POST, GET, OPTIONS'
+  }});
+}
+
+// Read-only health check: reports whether the key is visible, never its value.
+export async function onRequestGet({ request, env }) {
+  const url = new URL(request.url);
+  if (url.searchParams.get('diag') === '1') {
+    return json(env, 200, { configured: !!env.GROQ_API_KEY,
+      groq_variables_seen: Object.keys(env).filter(k => /GROQ/i.test(k)),
+      model: chatModel(env), search: searchModel(env) });
+  }
+  return json(env, 405, { error: 'method' });
+}
+
+export async function onRequestPost({ request, env }) {
+  if (!env.GROQ_API_KEY) return json(env, 503, { error: 'not-configured' });
 
   let incoming;
-  try { incoming = JSON.parse(event.body || '{}').messages; } catch (e) { incoming = null; }
-  if (!Array.isArray(incoming) || !incoming.length) return { statusCode: 400, headers: cors, body: '{"error":"bad-request"}' };
+  try { incoming = (await request.json()).messages; } catch (e) { incoming = null; }
+  if (!Array.isArray(incoming) || !incoming.length) return json(env, 400, { error: 'bad-request' });
 
   const history = incoming.slice(-MAX_TURNS)
     .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
     .map(m => ({ role: m.role, content: m.content.slice(0, MAX_USER_CHARS) }));
-  if (!history.length || history[history.length - 1].role !== 'user') {
-    return { statusCode: 400, headers: cors, body: '{"error":"bad-request"}' };
-  }
+  if (!history.length || history[history.length - 1].role !== 'user') return json(env, 400, { error: 'bad-request' });
 
   const messages = [{ role: 'system', content: SYSTEM }].concat(history);
   const sources = [];
@@ -186,27 +194,25 @@ exports.handler = async (event) => {
   try {
     let hops = 0;
     while (hops++ < 5) {
-      const r = await groq({ model: CHAT_MODEL, messages, tools: TOOLS, tool_choice: 'auto',
-                             temperature: 0.3, max_tokens: 900 });
+      const r = await groq(env, { model: chatModel(env), messages, tools: TOOLS, tool_choice: 'auto',
+                                  temperature: 0.3, max_tokens: 900 });
       const msg = r.choices[0].message;
       const calls = msg.tool_calls || [];
-      if (!calls.length) {
-        return { statusCode: 200, headers: cors, body: JSON.stringify({ text: (msg.content || '').trim(), sources }) };
-      }
+      if (!calls.length) return json(env, 200, { text: (msg.content || '').trim(), sources });
       messages.push({ role: 'assistant', content: msg.content || '', tool_calls: calls });
       for (const call of calls) {
         let args = {};
         try { args = JSON.parse(call.function.arguments || '{}'); } catch (e) { args = {}; }
         let result;
         if (call.function.name === 'calcular_impostos') result = JSON.stringify(runCalculator(args));
-        else if (call.function.name === 'pesquisar_anuncios') result = await searchListings(args, sources);
+        else if (call.function.name === 'pesquisar_anuncios') result = await searchListings(env, args, sources);
         else result = 'ferramenta desconhecida';
         messages.push({ role: 'tool', tool_call_id: call.id, content: result });
       }
     }
-    return { statusCode: 502, headers: cors, body: '{"error":"loop"}' };
+    return json(env, 502, { error: 'loop' });
   } catch (err) {
     console.error(err);
-    return { statusCode: 502, headers: cors, body: '{"error":"upstream"}' };
+    return json(env, 502, { error: 'upstream' });
   }
-};
+}
