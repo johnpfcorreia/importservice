@@ -243,6 +243,36 @@ h2{font-size:clamp(27px,3.6vw,38px);font-weight:700;letter-spacing:-.028em;line-
   border:1px solid var(--line);border-radius:4px;padding:3px 9px;cursor:pointer}
 .phone-reveal:hover{border-color:var(--plate);color:var(--plate)}
 .phone-num{font-variant-numeric:tabular-nums;font-weight:500;color:var(--ink)}
+#ar24chat{position:fixed;right:18px;bottom:18px;z-index:1000;font-family:var(--font-body)}
+.ar24c-fab{display:inline-flex;align-items:center;gap:8px;background:var(--plate);color:#fff;border:0;border-radius:999px;
+  padding:12px 18px;font:600 15px var(--font-body);cursor:pointer;box-shadow:0 8px 24px rgba(20,40,75,.28)}
+.ar24c-fab:hover{background:var(--plate-deep)}
+#ar24chat.open .ar24c-fab{display:none}
+.ar24c-panel{position:fixed;right:18px;bottom:18px;width:min(400px,calc(100vw - 36px));height:min(640px,calc(100vh - 36px));
+  background:var(--white);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 48px rgba(20,40,75,.22);
+  display:flex;flex-direction:column;overflow:hidden}
+.ar24c-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);
+  background:var(--plate);color:#fff}
+.ar24c-head strong{font-family:var(--font-display);font-size:15px}
+.ar24c-head div{display:flex;gap:6px;align-items:center}
+.ar24c-reset{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:5px;padding:4px 9px;
+  font:600 12px var(--font-body);cursor:pointer}
+.ar24c-close{background:transparent;border:0;color:#fff;font-size:24px;line-height:1;cursor:pointer;padding:0 4px}
+.ar24c-log{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--paper)}
+.ar24c-msg{max-width:88%;font-size:14.5px;line-height:1.55}
+.ar24c-msg .ar24c-body{padding:10px 13px;border-radius:12px}
+.ar24c-msg p{margin:0}.ar24c-msg p+p{margin-top:8px}
+.ar24c-msg.user{align-self:flex-end}.ar24c-msg.user .ar24c-body{background:var(--plate);color:#fff;border-bottom-right-radius:4px}
+.ar24c-msg.assistant{align-self:flex-start}.ar24c-msg.assistant .ar24c-body{background:var(--white);border:1px solid var(--line);border-bottom-left-radius:4px}
+.ar24c-msg.pending .ar24c-body{color:var(--slate);font-style:italic}
+.ar24c-src{font-size:12px;color:var(--slate);margin-top:6px;padding-left:4px}
+.ar24c-src a{color:var(--plate);text-decoration:none;font-weight:500}
+.ar24c-wa{display:inline-block;margin-top:10px;font-size:14px;padding:10px 16px}
+.ar24c-form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line);background:var(--white)}
+.ar24c-form textarea{flex:1;resize:none;font:14.5px var(--font-body);padding:10px 12px;border:1px solid var(--line);border-radius:8px}
+.ar24c-form .btn{padding:0 16px;font-size:14px}
+.ar24c-disc{font-size:11.5px;color:var(--slate);padding:0 14px 10px;margin:0;background:var(--white)}
+@media(max-width:520px){.ar24c-panel{right:0;bottom:0;width:100vw;height:100vh;border-radius:0}}
 .vatflag{display:inline-block;margin-top:10px;font-size:12px;font-weight:600;
   background:#EAEEF4;color:var(--plate);padding:4px 10px;border-radius:4px}
 .casenote{margin-top:28px;font-size:15.5px;color:var(--slate);max-width:68ch;line-height:1.65;
@@ -875,6 +905,7 @@ h1,h2{letter-spacing:-.035em}
       <div class="hero-cta">
       <a href="#contacto" class="btn" data-pt="Pedir proposta gratuita" data-es="Pedir presupuesto gratuito">Pedir proposta gratuita</a>
       <a href="#como" class="btn-ghost" data-pt="Ver como funciona" data-es="Ver cómo funciona">Ver como funciona</a>
+      <a href="#" class="btn-ghost" data-chat data-pt="Perguntar ao assistente" data-es="Preguntar al asistente">Perguntar ao assistente</a>
     </div>
       <ul class="hero-points">
         <li data-pt="Preço de serviço fixo e publicado" data-es="Precio de servicio fijo y publicado">Preço de serviço fixo e publicado</li>
@@ -1511,7 +1542,8 @@ h1,h2{letter-spacing:-.035em}
 
 <script src="/assets/tax-pt.js?v=9aeae7e9" defer></script>
 <script src="/assets/listing-parse.js?v=eaa5c30b" defer></script>
-<script src="/assets/site.js?v=2cecd390" defer></script>
+<script src="/assets/site.js?v=67e45d03" defer></script>
+<script src="/assets/chat.js?v=a8454b35" defer></script>
 <script src="/assets/simulator.js?v=8e7e698c" defer></script>
 <script>function loadScript(a){var b=document.getElementsByTagName("head")[0],c=document.createElement("script");c.type="text/javascript",c.src="https://tracker.metricool.com/resources/be.js",c.onreadystatechange=a,c.onload=a,b.appendChild(c)}loadScript(function(){beTracker.t({hash:"942c9b0090e152205deec2e339b12540"})});</script>
 </body>

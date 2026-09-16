@@ -106,6 +106,7 @@
 
   var PH = ['351', '913', '662', '883'];
   function waNumber() { return PH.join(''); }
+  window.__ar24wa = waNumber;
   function prettyNumber() { return '+' + PH[0] + ' ' + PH[1] + ' ' + PH[2] + ' ' + PH[3]; }
 
   $$('[data-wa]').forEach(function (a) {
