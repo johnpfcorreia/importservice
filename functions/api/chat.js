@@ -108,7 +108,12 @@ async function groq(env, body, extraHeaders) {
     }, extraHeaders || {}),
     body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error('groq ' + res.status + ' ' + (await res.text()).slice(0, 200));
+  if (!res.ok) {
+    const body = (await res.text()).slice(0, 300);
+    const err = new Error('groq ' + res.status);
+    err.status = res.status; err.detail = body;
+    throw err;
+  }
   return res.json();
 }
 
@@ -173,6 +178,25 @@ export async function onRequestGet({ request, env }) {
       groq_variables_seen: Object.keys(env).filter(k => /GROQ/i.test(k)),
       model: chatModel(env), search: searchModel(env) });
   }
+  if (url.searchParams.get('diag') === '2') {
+    const out = { configured: !!env.GROQ_API_KEY };
+    if (!env.GROQ_API_KEY) return json(env, 200, out);
+    const probe = async (model, extra) => {
+      try {
+        const r = await fetch(API, { method: 'POST', headers: { 'content-type': 'application/json',
+          'authorization': 'Bearer ' + env.GROQ_API_KEY, 'Groq-Model-Version': 'latest' },
+          body: JSON.stringify(Object.assign({ model, max_tokens: 8,
+            messages: [{ role: 'user', content: 'Diz olá.' }] }, extra || {})) });
+        const t = await r.text();
+        return { status: r.status, reply: t.slice(0, 200) };
+      } catch (e) { return { status: 'fetch-failed', reply: String(e).slice(0, 200) }; }
+    };
+    out.chat_model = chatModel(env);
+    out.chat = await probe(chatModel(env), { tools: TOOLS, tool_choice: 'auto' });
+    out.search_model = searchModel(env);
+    out.search = await probe(searchModel(env), { compound_custom: { tools: { enabled_tools: ['web_search'] } } });
+    return json(env, 200, out);
+  }
   return json(env, 405, { error: 'method' });
 }
 
@@ -213,6 +237,7 @@ export async function onRequestPost({ request, env }) {
     return json(env, 502, { error: 'loop' });
   } catch (err) {
     console.error(err);
-    return json(env, 502, { error: 'upstream' });
+    return json(env, 502, { error: 'upstream', upstream_status: err.status || null,
+      detail: (err.detail || err.message || '').slice(0, 300) });
   }
 }
