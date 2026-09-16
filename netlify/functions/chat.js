@@ -160,6 +160,12 @@ exports.handler = async (event) => {
     'Content-Type': 'application/json'
   };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors, body: '' };
+  // Read-only health check: reports whether the key is visible, never its value.
+  if (event.httpMethod === 'GET' && event.queryStringParameters && event.queryStringParameters.diag === '1') {
+    const names = Object.keys(process.env).filter(k => /GROQ/i.test(k));
+    return { statusCode: 200, headers: cors, body: JSON.stringify({
+      configured: !!process.env.GROQ_API_KEY, groq_variables_seen: names, model: CHAT_MODEL, search: SEARCH_MODEL }) };
+  }
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: cors, body: '{"error":"method"}' };
   if (!process.env.GROQ_API_KEY) return { statusCode: 503, headers: cors, body: '{"error":"not-configured"}' };
 
